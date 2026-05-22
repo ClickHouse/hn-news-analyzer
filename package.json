@@ -1,0 +1,38 @@
+{
+  "name": "open-house-otel-collector-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Demo of ClickStack OpenTelemetry instrumentation. TypeScript HackerNews analyzer querying the public ClickHouse demo cluster, with an Express backend that has zero OTel imports AND zero OTel packages declared in this file. The booth reveal is a live `npm install @hyperdx/node-opentelemetry` plus a 4-word toggle flip in run.sh — instrumentation lights up at runtime via the opentelemetry-instrument CLI, configured by env vars. React + Click UI + Recharts dashboard on the frontend.",
+  "scripts": {
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:web": "vite build",
+    "build": "npm run build:server && npm run build:web",
+    "dev:server": "tsx watch src/server/index.ts",
+    "dev:web": "vite",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.web.json --noEmit"
+  },
+  "dependencies": {
+    "@clickhouse/click-ui": "^0.6.0",
+    "@clickhouse/client": "^1.18.5",
+    "dayjs": "^1.11.19",
+    "express": "^5.2.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-error-boundary": "^6.1.1",
+    "recharts": "^3.8.1",
+    "styled-components": "^6.4.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "tsx": "^4.22.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
