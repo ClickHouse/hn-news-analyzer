@@ -418,11 +418,6 @@ app.use((err: Error & { status?: number }, req: Request, res: Response, _next: N
 const server = app.listen(PORT, () => {
   console.log(`=== HN ANALYZER on http://localhost:${PORT} ===`);
   console.log(`[clickhouse] data source: ${CLICKHOUSE_URL} / db=${CLICKHOUSE_DATABASE}`);
-  console.log(
-    `[telemetry] OTLP endpoint configured: ${
-      process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? '(unset)'
-    }  (whether the SDK is actually wired up depends on the run.sh toggle)`,
-  );
   maybeStartSelfTraffic();
 });
 
