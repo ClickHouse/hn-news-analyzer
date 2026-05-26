@@ -17,11 +17,14 @@
 #   - Any process holding :14318         → killed (the otel-sink debug receiver)
 #   - ClickStack `otel.*` tables         → TRUNCATEd over HTTPS (so the next
 #                                          session sees an empty ClickStack UI).
-#                                          Requires CLICKHOUSE_HOST / _USER /
+#                                          Requires CLICKSTACK_CH_HOST / _USER /
 #                                          _PASSWORD in .env; skipped otherwise.
+#                                          (Separate from CLICKHOUSE_* — the app
+#                                          uses those for the HN dataset.)
+#   - .env                               → emptied (after truncate; refill from
+#                                          .env.example before the next ./run.sh)
 #
 # What this does NOT touch:
-#   - .env                               → never. Your token stays put.
 #   - node_modules/ (other than HyperDX) → never. Saves a full re-install.
 #   - any other tracked source under src/.
 set -euo pipefail
@@ -36,12 +39,12 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-if [[ -z "${CLICKHOUSE_HOST:-}" || -z "${CLICKHOUSE_USER:-}" || -z "${CLICKHOUSE_PASSWORD:-}" ]]; then
-  echo "    SKIPPED: CLICKHOUSE_HOST / CLICKHOUSE_USER / CLICKHOUSE_PASSWORD not set in .env."
+if [[ -z "${CLICKSTACK_CH_HOST:-}" || -z "${CLICKSTACK_CH_USER:-}" || -z "${CLICKSTACK_CH_PASSWORD:-}" ]]; then
+  echo "    SKIPPED: CLICKSTACK_CH_HOST / CLICKSTACK_CH_USER / CLICKSTACK_CH_PASSWORD not set in .env."
   echo "             Add them to also wipe hyperdx_sessions, otel_logs, otel_traces,"
   echo "             and the five otel_metrics_* tables between booth sessions."
 else
-  ch_url="https://${CLICKHOUSE_HOST}:8443/?database=otel"
+  ch_url="https://${CLICKSTACK_CH_HOST}:8443/?database=otel"
   for t in hyperdx_sessions \
            otel_logs \
            otel_metrics_exponential_histogram \
@@ -52,7 +55,7 @@ else
            otel_traces; do
     echo "    TRUNCATE TABLE otel.${t}"
     if ! curl -sS --fail \
-              --user "${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}" \
+              --user "${CLICKSTACK_CH_USER}:${CLICKSTACK_CH_PASSWORD}" \
               --data-binary "TRUNCATE TABLE ${t}" \
               "${ch_url}" >/dev/null; then
       echo "    WARN: TRUNCATE failed for otel.${t} — continuing"
@@ -208,8 +211,12 @@ rmdir node_modules/@hyperdx 2>/dev/null || true
 echo "==> Removing build output (dist/, .vite/, node_modules/.vite/)"
 rm -rf dist .vite node_modules/.vite
 
+echo "==> Clearing .env (refill from .env.example before the next ./run.sh)"
+: > .env
+
 echo
 echo "Reset complete. Next demo:"
+echo "  # edit .env — paste values from ClickStack Console → Env vars tab"
 echo "  ./run.sh                                       # 1. collector silent (BEFORE)"
 echo "  npm install @hyperdx/node-opentelemetry        # 2. live install"
 echo "  # edit run.sh — flip the comment on the exec lines"
