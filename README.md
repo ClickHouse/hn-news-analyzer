@@ -32,7 +32,7 @@ and session replays.
 
 ## Prerequisites
 
-- **Node 18+** and **npm**.
+- **Node 22+** and **npm**.
 - A ClickStack endpoint and an ingestion token. Get them from the
   ClickStack Console → "Configure your OpenTelemetry exporter" → **Env vars** tab.
 - Public ClickHouse demo cluster is used out of the box (no creds needed).
