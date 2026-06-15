@@ -46,7 +46,7 @@ npm install
 cp .env.example .env
 # Open .env and paste these 2 values from the ClickStack Console:
 #   OTEL_EXPORTER_OTLP_ENDPOINT
-#   HYPERDX_API_KEY              (the ingestion token)
+#   OTEL_EXPORTER_OTLP_HEADERS=authorization=     (the ingestion token)
 ```
 
 > No extra vars are needed for the optional Step 5 (browser telemetry /
