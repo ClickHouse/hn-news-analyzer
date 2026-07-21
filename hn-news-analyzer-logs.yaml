@@ -1,0 +1,7 @@
+logs:
+  - type: file
+    path: /tmp/hn-news-analyzer.log
+    service: hn-news-analyzer
+    source: nodejs
+    tags:
+      - env:demo
