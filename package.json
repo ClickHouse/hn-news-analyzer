@@ -15,6 +15,7 @@
     "@clickhouse/click-ui": "^0.6.0",
     "@clickhouse/client": "^1.18.5",
     "dayjs": "^1.11.19",
+    "dd-trace": "^6.4.0",
     "express": "^5.2.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
