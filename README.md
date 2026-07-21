@@ -97,6 +97,7 @@ remote_configuration:
 After we've done that, we can restart the Datadog agent.
 
 If we navigate to localhost:8080, we should see events coming in.
+
 ---
 
 ## Endpoints quick reference
