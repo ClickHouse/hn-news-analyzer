@@ -1,4 +1,4 @@
-# HackerNews Analyzer — ClickStack OpenTelemetry demo
+# HackerNews Analyzer
 
 A HackerNews analyzer that queries the public ClickHouse demo cluster
 (`sql-clickhouse.clickhouse.com` → `hackernews.hackernews`). Every chart,
@@ -6,41 +6,49 @@ table, and search box is a real ClickHouse query, so every interaction can
 produce a trace whose hero span is the HTTPS call from the Node backend
 out to ClickHouse, with correlated `console.log` records attached.
 
+![HackerNews Analyzer dashboard with all-time stats and an activity chart of stories and comments](./images/app.png)
+
 This repo ships **uninstrumented**. `src/server/` has no OpenTelemetry
 imports, and `package.json` declares no OTel packages until you add them.
-Two ways to turn telemetry on against **ClickStack Cloud**:
+Two ways to send logs, traces, and metrics to [ClickStack](https://clickhouse.com/cloud/clickstack) on ClickHouse Cloud:
 
-1. **Agent (recommended)** — paste the prompt below into Cursor (or similar)
-   after filling `.env`.
-2. **Manual** — the booth-demo reveal: one `npm install` and a four-word
-   toggle in `run.sh`.
-
-If you cloned a tree that already lists `@hyperdx/node-opentelemetry` in
-`package.json`, skip instrumentation: fill `.env` and run `./run.sh`.
+- **Agent (recommended):** paste the prompt below into Cursor (or a similar coding agent) after filling `.env`.
+- **Manual:** follow [Instrument manually](#instrument-manually) if you prefer to do the steps yourself.
 
 ---
 
 ## Prerequisites
 
 - **Node 18+** and **npm**.
-- A ClickStack Cloud service. In the [ClickHouse Cloud console](https://console.clickhouse.cloud),
-  open the service → **ClickStack** → **Configure your OpenTelemetry exporter**
-  → **Env vars**. You need the OTLP endpoint and the ingestion token.
+- A [ClickStack](https://clickhouse.com/cloud/clickstack) service on ClickHouse Cloud. In the Cloud console, open the service, then **ClickStack** → **Configure your OpenTelemetry exporter** → **Env vars**. You need the OTLP endpoint and the ingestion token.
 - The public ClickHouse demo cluster is used out of the box (no extra creds).
 
 ---
 
-## Configure environment variables
+## Run the application
 
-Do this before either instrumentation path. The SDKs read standard
-OpenTelemetry exporter variables — they are not hardcoded in source.
+You can run the app uninstrumented first. `run.sh` requires a `.env` file; placeholders from `.env.example` are fine until you instrument.
 
 ```bash
 npm install
 cp .env.example .env
+./run.sh
 ```
 
-Open `.env` and paste the ClickStack Cloud values:
+The app is then at [http://localhost:5001](http://localhost:5001).
+
+## Configure environment
+
+Do this before either instrumentation path. The SDKs read standard
+OpenTelemetry exporter variables; they are not hardcoded in source.
+
+If you skipped the copy above:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and paste the ClickStack values from the Cloud console:
 
 | Variable | Required | What to set |
 | --- | --- | --- |
@@ -55,18 +63,15 @@ will fail auth. Never commit `.env`.
 
 Frontend session replay reuses the same `OTEL_EXPORTER_OTLP_*` values.
 `vite.config.ts` bakes the endpoint and token into the browser bundle at
-build time — use a demo-scoped token, not a production one.
+build time. Use a throwaway ingestion token, not a production one.
 
-Then pick **agent** or **manual** below.
+Then pick the **agent** or **manual** approach to enable instrumentation. 
 
 ---
 
 ## Instrument with an agent
 
-With `.env` filled in, copy the prompt into your coding agent and let it
-install the SDKs, flip `run.sh`, and confirm OTLP is reaching ClickStack
-Cloud. If the ClickStack values are still placeholders, a well-behaved
-agent should stop and ask you to paste them rather than inventing a token.
+With `.env` filled in, copy the prompt below into your coding agent.
 
 ```text
 Instrument this application for ClickStack Cloud.
@@ -126,59 +131,28 @@ Refill `.env` from `.env.example` afterwards — `reset.sh` clears it.
 
 ## Instrument manually
 
-The booth reveal is two commands on the projector: install the backend
-SDK, then flip a four-word toggle in `run.sh`. No source edits, no
-`@opentelemetry/*` imports in `src/server/`.
+Backend auto-instrumentation is two steps: install `@hyperdx/node-opentelemetry`,
+then wrap the Node process with `opentelemetry-instrument` in `run.sh`. There
+are no OpenTelemetry imports in `src/server/`.
 
-> **Between booth sessions:** run `./reset.sh`. It restores `run.sh` and
-> `src/web/telemetry.ts` to the canonical “before” state, uninstalls both
-> HyperDX SDKs, kills leftover servers on `:5001` / `:14318`, drops the
-> build cache, and empties `.env`. Refill `.env` before the next run.
+To strip the SDKs and restore the uninstrumented files later, run `./reset.sh`.
+That also empties `.env`; copy `.env.example` again and refill the ClickStack
+values before the next instrumented run.
 
-### 1. The “before” state — collector is silent
-
-```bash
-./run.sh
-```
-
-Open [http://localhost:5001](http://localhost:5001). You should see:
-
-- A **year selector** at the top right (“All time” by default).
-- 5 BigStats (total rows, stories, comments, authors, span).
-- An activity area chart (yearly buckets for “All time”, monthly for a single year).
-- Top users + top domains tables (scoped to the selected year).
-- A search box defaulting to “clickhouse” (always all-time).
-
-The terminal will scroll lines like:
-
-```text
-[http] GET /api/stats/overview
-[cache] miss overview
-[clickhouse] 87ms 1 rows
-```
-
-The ClickStack dashboard is silent. Show the audience the empty dashboard.
-
-### 2. The reveal — install the SDK live on the projector
-
-Before showing this command, narrate: look at `src/server/index.ts` and
-`src/server/clickhouse.ts` — zero OpenTelemetry imports. Look at
-`package.json` — zero OpenTelemetry dependencies. The only thing about to
-change is **which** command launches Node, but for that to work the wrapper
-needs to be installed first.
+### 1. Install the Node SDK
 
 ```bash
 npm install @hyperdx/node-opentelemetry
 ```
 
-This adds the OTel SDK plus auto-instrumentations for Express, HTTP,
-Undici, and so on. It does not change a single line of application source
-— `src/server/` still has no OTel imports.
+This adds the OpenTelemetry SDK and auto-instrumentations for Express, HTTP,
+Undici, and related libraries. It does not change application source:
+`src/server/` still has no OTel imports.
 
-### 3. The reveal — flip the toggle in `run.sh`
+### 2. Enable the wrapper in `run.sh`
 
-The bottom of `run.sh` has two `exec` lines; one is active, the other is
-commented. Comment the active one and uncomment the other:
+The bottom of `run.sh` has two `exec` lines. Comment the plain `node` line
+and uncomment the instrumented one:
 
 ```diff
  # BEFORE — plain node, no instrumentation, collector stays silent:
@@ -190,44 +164,42 @@ commented. Comment the active one and uncomment the other:
 +exec npx opentelemetry-instrument scripts/entrypoint.js
 ```
 
-Four words added to a command line. That's the entire diff.
+If you flip the toggle without installing the package, `run.sh` exits with a
+reminder.
 
-### 4. Re-run, same script
+### 3. Restart the app
 
 ```bash
 # Ctrl-C the previous run, then:
 ./run.sh
 ```
 
-`run.sh` now boots the server via `opentelemetry-instrument
-scripts/entrypoint.js` (HyperDX SDK pre-loaded — no `node` argument; the
-HyperDX CLI runs the script itself). The two-line `scripts/entrypoint.js`
-does `require('console')` once to wake up the HyperDX console-capture
-hook, then requires the compiled server. See [How “zero code change”
+`run.sh` now starts the server with `opentelemetry-instrument
+scripts/entrypoint.js`. The HyperDX CLI loads the SDK, then runs that
+script (there is no separate `node` argument). `scripts/entrypoint.js`
+calls `require('console')` once so console capture actually wraps
+`console.log`, then loads the compiled server. See [How “zero code change”
 works](#how-zero-code-change-works-and-where-it-doesnt) for why that
-single `require` matters.
+`require` is there.
 
-> If you forget step 2 and only flip the toggle, `run.sh` will detect
-> that and exit with a one-line reminder before doing anything else.
+Confirm the startup banner prints three “Health check passed” lines for
+`/v1/traces`, `/v1/metrics`, and `/v1/logs`. Then click around
+[http://localhost:5001](http://localhost:5001) and look for the
+corresponding traces in ClickStack.
 
-### 5. Optional follow-up — browser session replay
+### 4. Optional: browser sessions
 
-This is an optional second act after the backend traces are flowing. Skip
-it if your slot is short; otherwise it's the most visually striking part
-of the whole demo. Mechanically it's the same shape as steps 2–4 but for
-the frontend.
-
-**No extra `.env` changes.** The browser bundle reuses
-`OTEL_EXPORTER_OTLP_ENDPOINT` and the token already inside
-`OTEL_EXPORTER_OTLP_HEADERS` (parsed at build time by `vite.config.ts`,
-with `HYPERDX_API_KEY` as a fallback). Same vars the backend uses.
+After backend traces are flowing, you can add distributed traces
+(browser → backend) and session replay. No extra `.env` keys: the browser
+bundle reuses `OTEL_EXPORTER_OTLP_ENDPOINT` and the token inside
+`OTEL_EXPORTER_OTLP_HEADERS` (parsed at build time by `vite.config.ts`).
 
 ```bash
 npm install @hyperdx/browser
 ```
 
-Then on the projector, open `src/web/telemetry.ts` and uncomment exactly
-two things:
+In `src/web/telemetry.ts`, uncomment the import and the `HyperDX.init({...})`
+block:
 
 ```diff
 -// import HyperDX from '@hyperdx/browser';
@@ -253,50 +225,37 @@ two things:
  }
 ```
 
-`__OTLP_ENDPOINT__` / `__OTLP_AUTH_TOKEN__` are string constants Vite
-substitutes at build time — no runtime env lookups, no `import.meta.env`
-plumbing. Declared in `src/web/types.d.ts`, defined in `vite.config.ts`.
+`__OTLP_ENDPOINT__` and `__OTLP_AUTH_TOKEN__` are compile-time constants
+from `vite.config.ts` (declared in `src/web/types.d.ts`).
 
-Then restart and hard-reload the tab:
+Also uncomment `HyperDX.addAction(name, attrs)` in `recordAction()` in the
+same file. The dashboard already calls `recordAction(...)` on refresh and
+search submit; those become named markers on the replay timeline.
+
+Restart and hard-reload the tab so the new bundle is served:
 
 ```bash
 # Ctrl-C, then:
 ./run.sh
-# In the browser: Cmd-Shift-R (so the freshly built bundle is served)
 ```
 
-What this unlocks in ClickStack:
+In ClickStack you should then see:
 
-- **Distributed traces.** Click anything in the UI. The browser's
-  `fetch /api/*` span now shares a trace ID with the Express handler
-  span — `tracePropagationTargets` makes the SDK inject `traceparent` on
-  outgoing `/api/*` requests, OTel on the backend reads it, one trace.
-- **Session replays.** Every visitor gets a scrubbable video of their
-  session, synced to the trace timeline. Click around a panel, open the
-  replay, drag the scrub bar — the trace highlights move with the cursor.
-- **Browser-side console capture, network capture, unhandled errors.**
+- A browser `fetch /api/*` span sharing a trace ID with the Express handler
+  (`traceparent` is injected because of `tracePropagationTargets`)
+- Session replay on the trace timeline (on by default once `HyperDX.init`
+  runs; pass `disableReplay: true` if you do not want that)
+- Browser console, network, and unhandled-error capture
 
-**Optional bonus — named action markers in the replay timeline.** Also
-uncomment the single `// HyperDX.addAction(name, attrs);` line in
-`recordAction()` (same file). The app already calls `recordAction(...)`
-on every dashboard refresh and search submit; this lights those up as
-labelled markers you can click in the session replay.
-
-> **Booth ops note.** Session replay is **on by default** once enabled.
-> Put a small “demo recording in progress” sign on the laptop, or pass
-> `disableReplay: true` inside the `HyperDX.init({...})` block if the
-> venue requires it.
-
-> **Security note.** Your OTLP ingestion token is baked into the public
-> browser bundle — anyone reading your network tab can lift it. Use a
-> throwaway demo-scoped token, never your production one.
+The ingestion token is baked into the public JS bundle. Anyone with the
+network tab can copy it, so use a throwaway token, never a production one.
 
 ---
 
 ## What to look at in ClickStack
 
-Split the screen three ways: **app (left)**, **terminal (top-right)**,
-**ClickStack (bottom-right)**.
+After the app is instrumented, click around [http://localhost:5001](http://localhost:5001)
+and open the matching traces in ClickStack.
 
 ### The headline span: ClickHouse over HTTP
 
@@ -308,9 +267,8 @@ request. You'll see:
   with real network duration, real byte count
 - Correlated `console.log` lines as log records on the same trace
 
-> **This is the punchline.** That ClickHouse span was captured for free,
-> with zero code in our backend, just because `opentelemetry-instrument`
-> patches Node's http stack.
+> That ClickHouse span was captured without any instrumentation code in
+> the backend: `opentelemetry-instrument` patches Node's http stack.
 
 ### Cache hits vs misses
 
@@ -321,7 +279,7 @@ Refresh the dashboard twice in quick succession (the in-memory TTL is 30s).
 
 OTel just made cache effectiveness visible without a line of code.
 
-### The year selector — interactive scan-cost demo
+### The year selector
 
 Pick a year from the dropdown (“2024”, then “2010”, then “All time”). Each
 choice issues four fresh ClickHouse queries (overview / timeline / top-users
@@ -335,12 +293,12 @@ Pull up the trace for `GET /api/stats/top-users?year=2024` and compare to
 - “All time” scans ~50M rows in ~1.2s (and sometimes hits the cluster's
   memory cap, triggering our retry + stale-cache fallback).
 
-> Great moment to narrate predicate pushdown: ClickHouse's MergeTree skips
-> entire data parts whose `time` range falls outside the year, so the scan
-> is sub-linear in the table size. The trace shows the actual wall time.
+> ClickHouse MergeTree can skip data parts whose `time` range falls
+> outside the selected year, so the scan is sub-linear in table size. The
+> trace shows the actual wall time.
 
-Each `year` value gets its own 30s cache entry, so audience members spamming
-the dropdown won't melt the cluster — but spans still appear on cache miss.
+Each `year` value gets its own 30s cache entry, so changing the dropdown
+quickly does not melt the cluster, but spans still appear on cache miss.
 
 ### Log ↔ trace correlation
 
@@ -410,8 +368,8 @@ you open in the browser).
    check fails, the endpoint or token is wrong.
 
 **Traces and metrics arrive but logs do not.** Console capture hooks
-`require('console')` via `require-in-the-middle`. Modern apps never call
-that explicitly — they use the global `console` — so the hook never fires
+`require('console')` via `require-in-the-middle`. Most apps never call
+that explicitly. They use the global `console`, so the hook never fires
 and `console.log` is never wrapped. We work around this with a 2-line
 `scripts/entrypoint.js` that does `require('console')` *after* the HyperDX
 SDK has installed its hook but *before* our app starts logging. Because
@@ -438,9 +396,8 @@ shared and occasionally hits its global memory cap (e.g.
 `MEMORY_LIMIT_EXCEEDED ... current RSS: 343 GiB, maximum: 320 GiB`). The
 backend handles this automatically:
 
-1. **Pick a year** (instead of “All time”) — that filter alone usually drops
-   the query cost from “scans 50M rows” to “scans 3M rows” and the cluster
-   stops complaining. The most common fix during a demo.
+1. **Pick a year** (instead of “All time”). That filter usually drops the
+   query cost from “scans 50M rows” to “scans 3M rows”.
 2. Per-query `max_memory_usage=1 GiB` + `max_threads=4` keeps us a polite tenant.
 3. Heavy aggregates use approximations (`uniq` over HyperLogLog instead of
    `uniqExact`, score-filtered `GROUP BY` for all-time top-users / top-domains).
@@ -449,8 +406,8 @@ backend handles this automatically:
 5. If the retry also fails AND we have a recently-cached value, the API serves
    the stale value with `stale: true` and the UI shows the warning badge.
 
-Result: the dashboard keeps working through cluster overload — you can
-narrate the trace for that exact failure mode if the audience is technical.
+Result: the dashboard keeps working through cluster overload, and the
+trace for that failure is still in ClickStack.
 
 **ClickHouse 'connection refused' / timeout.** The public demo cluster may be
 under load. The backend already has `request_timeout: 20s` and the queries cap
@@ -461,16 +418,16 @@ curl https://sql-clickhouse.clickhouse.com:8443/ping
 ```
 
 Should return `Ok.`. If that fails, you're behind a proxy or the cluster is
-having a bad day — point the demo at a different ClickHouse instance via the
+having a bad day. Point the app at a different ClickHouse instance via the
 `CLICKHOUSE_*` env vars in `.env`.
 
 **Search returns nothing.** The dataset's `time` column maxes out around 2021,
 so terms that only became popular after that (e.g. “GPT-4”) return zero
 results. Try classic terms: `rust`, `clickhouse`, `bitcoin`, `kubernetes`.
 
-**Fallback self-traffic loop.** If you're running the demo without a live
-browser tab (e.g. SSH'd in), set `SELF_TRAFFIC=1 ./run.sh` to have the
-backend fire a random dashboard refresh or search every 2–3s.
+**Fallback self-traffic loop.** If you're running without a browser tab
+(for example over SSH), set `SELF_TRAFFIC=1 ./run.sh` so the backend fires
+a random dashboard refresh or search every 2–3s.
 
 ---
 
@@ -493,8 +450,8 @@ backend fire a random dashboard refresh or search every 2–3s.
   The one operational concession is `scripts/entrypoint.js` — 2 lines that
   do `require('console')` to wake up the HyperDX console-capture hook, then
   require the real compiled server. It's not part of the application source
-  tree (`src/server/` stays pure) and the demo narrative can ignore it, but
-  it's what makes log capture actually work in Node.
+  tree (`src/server/` stays pure), but it's what makes log capture work
+  in Node.
 
 - **Frontend:** browser SDK init lives in `src/web/telemetry.ts`, commented
   out by default. Enabling it requires two uncomments (`import` +
