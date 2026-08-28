@@ -10,7 +10,21 @@ out to ClickHouse, with correlated `console.log` records attached.
 
 This repo ships **uninstrumented**. `src/server/` has no OpenTelemetry
 imports, and `package.json` declares no OTel packages until you add them.
-Two ways to send logs, traces, and metrics to [ClickStack](https://clickhouse.com/cloud/clickstack) on ClickHouse Cloud:
+
+If you just want telemetry without wiring it yourself, use the
+[`instrumented`](https://github.com/ClickHouse/hn-news-analyzer/tree/instrumented)
+branch — both SDKs are already installed and the toggles are on:
+
+```bash
+git clone -b instrumented https://github.com/ClickHouse/hn-news-analyzer.git
+cd hn-news-analyzer
+npm install
+cp .env.example .env   # then paste ClickStack OTLP values (see below)
+./run.sh
+```
+
+Otherwise, two ways to instrument **this** branch and send logs, traces, and
+metrics to [ClickStack](https://clickhouse.com/cloud/clickstack) on ClickHouse Cloud:
 
 - **Agent (recommended):** paste the prompt below into Cursor (or a similar coding agent) after filling `.env`.
 - **Manual:** follow [Instrument manually](#instrument-manually) if you prefer to do the steps yourself.
@@ -65,7 +79,8 @@ Frontend session replay reuses the same `OTEL_EXPORTER_OTLP_*` values.
 `vite.config.ts` bakes the endpoint and token into the browser bundle at
 build time. Use a throwaway ingestion token, not a production one.
 
-Then pick the **agent** or **manual** approach to enable instrumentation. 
+Then pick the **agent** or **manual** approach to enable instrumentation.
+Or skip that and use the [`instrumented`](https://github.com/ClickHouse/hn-news-analyzer/tree/instrumented) branch instead. 
 
 ---
 
