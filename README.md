@@ -13,8 +13,26 @@ This is the **pre-instrumented** branch. `@hyperdx/node-opentelemetry` and
 `opentelemetry-instrument`, and `src/web/telemetry.ts` calls `HyperDX.init`.
 Fill `.env` and run — no agent prompt or manual wiring required.
 
-If you'd rather instrument the app yourself (agent or by hand), use
-[`agentic-getting-started`](https://github.com/ClickHouse/hn-news-analyzer/tree/agentic-getting-started).
+If you'd rather instrument the app yourself, switch to
+[`agentic-getting-started`](https://github.com/ClickHouse/hn-news-analyzer/tree/agentic-getting-started)
+(uninstrumented), fill `.env`, then copy this prompt into Cursor (or another
+coding agent), or [open it in Cursor](https://cursor.com/link/prompt?text=Use+curl+to+download%2C+read+and+follow%3A+https%3A%2F%2Fgithub.com%2FClickHouse%2Fhn-news-analyzer%2Fblob%2Fmain%2Fagent.md):
+
+```text
+Use curl to download, read and follow: https://github.com/ClickHouse/hn-news-analyzer/blob/main/agent.md
+```
+
+Works with Claude Code, Cursor, Codex, and other coding agents. The instructions live in [`agent.md`](https://github.com/ClickHouse/hn-news-analyzer/blob/main/agent.md). To do the steps by hand, follow [Instrument manually](https://github.com/ClickHouse/hn-news-analyzer/blob/agentic-getting-started/README.md#instrument-manually) on that branch.
+
+<details>
+<summary>What the agent will do</summary>
+
+1. Confirm the working directory is this clone and `.env` is filled in
+2. Install `@hyperdx/node-opentelemetry` and enable `opentelemetry-instrument` in `run.sh`
+3. Install `@hyperdx/browser` and enable `HyperDX.init` / `HyperDX.addAction`
+4. Run `./run.sh` and verify `/v1/traces`, `/v1/metrics`, and `/v1/logs` health checks pass
+
+</details>
 
 ---
 
