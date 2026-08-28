@@ -2,7 +2,7 @@
   "name": "open-house-otel-collector-demo",
   "version": "1.0.0",
   "private": true,
-  "description": "Demo of ClickStack OpenTelemetry instrumentation. TypeScript HackerNews analyzer querying the public ClickHouse demo cluster, with an Express backend that has zero OTel imports AND zero OTel packages declared in this file. The booth reveal is a live `npm install @hyperdx/node-opentelemetry` plus a 4-word toggle flip in run.sh — instrumentation lights up at runtime via the opentelemetry-instrument CLI, configured by env vars. React + Click UI + Recharts dashboard on the frontend.",
+  "description": "Pre-instrumented ClickStack OpenTelemetry demo. TypeScript HackerNews analyzer querying the public ClickHouse demo cluster. Express backend auto-instrumented via opentelemetry-instrument (@hyperdx/node-opentelemetry); React frontend uses @hyperdx/browser for session replay and trace propagation.",
   "scripts": {
     "build:server": "tsc -p tsconfig.server.json",
     "build:web": "vite build",
@@ -14,6 +14,8 @@
   "dependencies": {
     "@clickhouse/click-ui": "^0.6.0",
     "@clickhouse/client": "^1.18.5",
+    "@hyperdx/browser": "^0.25.1",
+    "@hyperdx/node-opentelemetry": "^0.11.0",
     "dayjs": "^1.11.19",
     "express": "^5.2.1",
     "react": "^19.2.6",
