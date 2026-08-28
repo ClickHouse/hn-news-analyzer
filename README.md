@@ -10,10 +10,12 @@ out to ClickHouse, with correlated `console.log` records attached.
 
 This repo ships **uninstrumented**. `src/server/` has no OpenTelemetry
 imports, and `package.json` declares no OTel packages until you add them.
-Two ways to send logs, traces, and metrics to [ClickStack](https://clickhouse.com/cloud/clickstack) on ClickHouse Cloud:
 
-- **Agent (recommended):** paste the prompt below into Cursor (or a similar coding agent) after filling `.env`.
-- **Manual:** follow [Instrument manually](#instrument-manually) if you prefer to do the steps yourself.
+Three ways to send logs, traces, and metrics to [ClickStack](https://clickhouse.com/cloud/clickstack) on ClickHouse Cloud:
+
+- **Agent-assisted (recommended):** fill `.env`, then copy the [prompt](#instrument-with-an-agent) into Cursor or another coding agent.
+- **Manual:** follow [Instrument manually](#instrument-manually).
+- **Already wired:** check out the [`instrumented`](https://github.com/ClickHouse/hn-news-analyzer/tree/instrumented) branch — both SDKs are installed and the toggles are on.
 
 ---
 
@@ -25,26 +27,16 @@ Two ways to send logs, traces, and metrics to [ClickStack](https://clickhouse.co
 
 ---
 
-## Run the application
+## Configure environment and run
 
-You can run the app uninstrumented first. `run.sh` requires a `.env` file; placeholders from `.env.example` are fine until you instrument.
+The SDKs read standard OpenTelemetry exporter variables; they are not
+hardcoded in source.
 
 ```bash
+git clone https://github.com/ClickHouse/hn-news-analyzer.git
+# skip wiring: git clone -b instrumented https://github.com/ClickHouse/hn-news-analyzer.git
+cd hn-news-analyzer
 npm install
-cp .env.example .env
-./run.sh
-```
-
-The app is then at [http://localhost:5001](http://localhost:5001).
-
-## Configure environment
-
-Do this before either instrumentation path. The SDKs read standard
-OpenTelemetry exporter variables; they are not hardcoded in source.
-
-If you skipped the copy above:
-
-```bash
 cp .env.example .env
 ```
 
@@ -59,59 +51,43 @@ Open `.env` and paste the ClickStack values from the Cloud console:
 | `OTEL_TRACES_EXPORTER` / `OTEL_METRICS_EXPORTER` / `OTEL_LOGS_EXPORTER` | recommended | `otlp` (already in `.env.example`) |
 
 Leave placeholders (`YOUR_TENANT`, empty `authorization=`) and exporters
-will fail auth. Never commit `.env`.
+will fail auth. Never commit `.env`. On `main`, placeholders are fine until
+you instrument.
 
 Frontend session replay reuses the same `OTEL_EXPORTER_OTLP_*` values.
 `vite.config.ts` bakes the endpoint and token into the browser bundle at
 build time. Use a throwaway ingestion token, not a production one.
 
-Then pick the **agent** or **manual** approach to enable instrumentation. 
+```bash
+./run.sh
+```
+
+The app is at [http://localhost:5001](http://localhost:5001). Then pick
+**agent-assisted** or **manual**. If you cloned `instrumented`, skip those —
+telemetry is already wired.
 
 ---
 
 ## Instrument with an agent
 
-With `.env` filled in, copy the prompt below into your coding agent.
+With `.env` filled in, copy this prompt into Cursor (or another coding agent),
+or [open it in Cursor](https://cursor.com/link/prompt?text=Use+curl+to+download%2C+read+and+follow%3A+https%3A%2F%2Fgithub.com%2FClickHouse%2Fhn-news-analyzer%2Fblob%2Fmain%2Fagent.md).
 
 ```text
-Instrument this application for ClickStack Cloud.
-
-Environment (do not invent or print secrets):
-- Read `.env.example` and `.env`.
-- Export logs, traces, and metrics over OTLP/HTTP using the standard
-  OpenTelemetry variables:
-    OTEL_EXPORTER_OTLP_ENDPOINT
-    OTEL_EXPORTER_OTLP_PROTOCOL
-    OTEL_EXPORTER_OTLP_HEADERS
-- Those values come from the ClickHouse Cloud console: open the ClickStack
-  service → Configure your OpenTelemetry exporter → Env vars. Protocol is
-  http/protobuf. Headers are `authorization=<ingestion token>` with no
-  Bearer prefix.
-- Also set OTEL_SERVICE_NAME=hn-analyzer-api, OTEL_TRACES_EXPORTER=otlp,
-  OTEL_METRICS_EXPORTER=otlp, and OTEL_LOGS_EXPORTER=otlp.
-- If `.env` still has YOUR_TENANT placeholders or an empty authorization=,
-  stop and tell me which console values to paste. Never hardcode tokens
-  in source files.
-
-Backend:
-- Add @hyperdx/node-opentelemetry and wire auto-instrumentation via
-  `opentelemetry-instrument` (the AFTER toggle at the bottom of run.sh).
-- Do not add OpenTelemetry imports to src/server/. Keep launching through
-  scripts/entrypoint.js so console logs are captured.
-- Export logs, traces, and metrics over OTLP/HTTP to the ClickStack Cloud
-  endpoint in .env.
-
-Frontend (client sessions):
-- Add @hyperdx/browser and enable HyperDX.init in src/web/telemetry.ts
-  (session replay, traceparent propagation to /api/*, console and network
-  capture). Reuse the same OTEL_EXPORTER_OTLP_* values — vite.config.ts
-  already injects them at build time.
-- Enable HyperDX.addAction in recordAction().
-
-Then run ./run.sh, exercise the app at http://localhost:5001, and confirm
-telemetry is arriving (HyperDX health checks for /v1/traces, /v1/metrics,
-and /v1/logs should pass).
+Use curl to download, read and follow: https://github.com/ClickHouse/hn-news-analyzer/blob/main/agent.md
 ```
+
+Your agent will instrument this app for ClickStack. Works with Claude Code, Cursor, Codex, and other coding agents. The instructions live in [`agent.md`](https://github.com/ClickHouse/hn-news-analyzer/blob/main/agent.md).
+
+<details>
+<summary>What the agent will do</summary>
+
+1. Confirm the working directory is this clone and `.env` is filled in
+2. Install `@hyperdx/node-opentelemetry` and enable `opentelemetry-instrument` in `run.sh`
+3. Install `@hyperdx/browser` and enable `HyperDX.init` / `HyperDX.addAction`
+4. Run `./run.sh` and verify `/v1/traces`, `/v1/metrics`, and `/v1/logs` health checks pass
+
+</details>
 
 After it finishes, open [http://localhost:5001](http://localhost:5001) and
 click around, then in the Cloud console open the service → **ClickStack**
