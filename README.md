@@ -17,14 +17,6 @@ Three ways to send logs, traces, and metrics to [ClickStack](https://clickhouse.
 - **Manual:** follow [Instrument manually](#instrument-manually).
 - **Already wired:** check out the [`instrumented`](https://github.com/ClickHouse/hn-news-analyzer/tree/instrumented) branch — both SDKs are installed and the toggles are on.
 
-```bash
-git clone -b instrumented https://github.com/ClickHouse/hn-news-analyzer.git
-cd hn-news-analyzer
-npm install
-cp .env.example .env   # then paste ClickStack OTLP values (see below)
-./run.sh
-```
-
 ---
 
 ## Prerequisites
@@ -35,27 +27,16 @@ cp .env.example .env   # then paste ClickStack OTLP values (see below)
 
 ---
 
-## Run the application
+## Configure environment and run
 
-You can run the app uninstrumented first. `run.sh` requires a `.env` file; placeholders from `.env.example` are fine until you instrument.
+The SDKs read standard OpenTelemetry exporter variables; they are not
+hardcoded in source.
 
 ```bash
+git clone https://github.com/ClickHouse/hn-news-analyzer.git
+# skip wiring: git clone -b instrumented https://github.com/ClickHouse/hn-news-analyzer.git
+cd hn-news-analyzer
 npm install
-cp .env.example .env
-./run.sh
-```
-
-The app is then at [http://localhost:5001](http://localhost:5001).
-
-## Configure environment
-
-Do this before the agent or manual path (and before running the
-`instrumented` branch). The SDKs read standard OpenTelemetry exporter
-variables; they are not hardcoded in source.
-
-If you skipped the copy above:
-
-```bash
 cp .env.example .env
 ```
 
@@ -70,13 +51,20 @@ Open `.env` and paste the ClickStack values from the Cloud console:
 | `OTEL_TRACES_EXPORTER` / `OTEL_METRICS_EXPORTER` / `OTEL_LOGS_EXPORTER` | recommended | `otlp` (already in `.env.example`) |
 
 Leave placeholders (`YOUR_TENANT`, empty `authorization=`) and exporters
-will fail auth. Never commit `.env`.
+will fail auth. Never commit `.env`. On `main`, placeholders are fine until
+you instrument.
 
 Frontend session replay reuses the same `OTEL_EXPORTER_OTLP_*` values.
 `vite.config.ts` bakes the endpoint and token into the browser bundle at
 build time. Use a throwaway ingestion token, not a production one.
 
-Then pick **agent-assisted**, **manual**, or the [`instrumented`](https://github.com/ClickHouse/hn-news-analyzer/tree/instrumented) branch.
+```bash
+./run.sh
+```
+
+The app is at [http://localhost:5001](http://localhost:5001). Then pick
+**agent-assisted** or **manual**. If you cloned `instrumented`, skip those —
+telemetry is already wired.
 
 ---
 
