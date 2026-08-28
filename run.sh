@@ -4,8 +4,8 @@
 # and logs export to ClickStack as soon as .env is filled.
 #
 # Do not run ./reset.sh here — it uninstalls the SDKs and restores the
-# uninstrumented BEFORE toggle. Use the agentic-getting-started branch
-# if you want the live install / toggle-flip workflow.
+# uninstrumented BEFORE toggle. Use main if you want the live install /
+# toggle-flip workflow.
 set -euo pipefail
 
 cd "$(dirname "$0")"

@@ -1,3 +1,10 @@
+> **This is the `instrumented` branch.** `@hyperdx/node-opentelemetry` and
+> `@hyperdx/browser` are already in `package.json`, `run.sh` launches through
+> `opentelemetry-instrument`, and `src/web/telemetry.ts` calls `HyperDX.init`.
+> Fill `.env` and run `./run.sh` — you do not need the agent or manual steps
+> below. To instrument the app yourself, use [`main`](https://github.com/ClickHouse/hn-news-analyzer).
+> Do not run `./reset.sh` here unless you want to strip the SDKs.
+
 # HackerNews Analyzer
 
 A HackerNews analyzer that queries the public ClickHouse demo cluster
@@ -8,31 +15,22 @@ out to ClickHouse, with correlated `console.log` records attached.
 
 ![HackerNews Analyzer dashboard with all-time stats and an activity chart of stories and comments](./images/app.png)
 
-This is the **pre-instrumented** branch. `@hyperdx/node-opentelemetry` and
-`@hyperdx/browser` are already in `package.json`, `run.sh` launches through
-`opentelemetry-instrument`, and `src/web/telemetry.ts` calls `HyperDX.init`.
-Fill `.env` and run — no agent prompt or manual wiring required.
+This repo ships **uninstrumented**. `src/server/` has no OpenTelemetry
+imports, and `package.json` declares no OTel packages until you add them.
 
-If you'd rather instrument the app yourself, switch to
-[`agentic-getting-started`](https://github.com/ClickHouse/hn-news-analyzer/tree/agentic-getting-started)
-(uninstrumented), fill `.env`, then copy this prompt into Cursor (or another
-coding agent), or [open it in Cursor](https://cursor.com/link/prompt?text=Use+curl+to+download%2C+read+and+follow%3A+https%3A%2F%2Fgithub.com%2FClickHouse%2Fhn-news-analyzer%2Fblob%2Fmain%2Fagent.md):
+Three ways to send logs, traces, and metrics to [ClickStack](https://clickhouse.com/cloud/clickstack) on ClickHouse Cloud:
 
-```text
-Use curl to download, read and follow: https://github.com/ClickHouse/hn-news-analyzer/blob/main/agent.md
+- **Agent-assisted (recommended):** fill `.env`, then copy the [prompt](#instrument-with-an-agent) into Cursor or another coding agent.
+- **Manual:** follow [Instrument manually](#instrument-manually).
+- **Already wired:** check out the [`instrumented`](https://github.com/ClickHouse/hn-news-analyzer/tree/instrumented) branch — both SDKs are installed and the toggles are on.
+
+```bash
+git clone -b instrumented https://github.com/ClickHouse/hn-news-analyzer.git
+cd hn-news-analyzer
+npm install
+cp .env.example .env   # then paste ClickStack OTLP values (see below)
+./run.sh
 ```
-
-Works with Claude Code, Cursor, Codex, and other coding agents. The instructions live in [`agent.md`](https://github.com/ClickHouse/hn-news-analyzer/blob/main/agent.md). To do the steps by hand, follow [Instrument manually](https://github.com/ClickHouse/hn-news-analyzer/blob/agentic-getting-started/README.md#instrument-manually) on that branch.
-
-<details>
-<summary>What the agent will do</summary>
-
-1. Confirm the working directory is this clone and `.env` is filled in
-2. Install `@hyperdx/node-opentelemetry` and enable `opentelemetry-instrument` in `run.sh`
-3. Install `@hyperdx/browser` and enable `HyperDX.init` / `HyperDX.addAction`
-4. Run `./run.sh` and verify `/v1/traces`, `/v1/metrics`, and `/v1/logs` health checks pass
-
-</details>
 
 ---
 
@@ -44,13 +42,27 @@ Works with Claude Code, Cursor, Codex, and other coding agents. The instructions
 
 ---
 
-## Configure environment and run
+## Run the application
 
-The SDKs read standard OpenTelemetry exporter variables; they are not
-hardcoded in source.
+You can run the app uninstrumented first. `run.sh` requires a `.env` file; placeholders from `.env.example` are fine until you instrument.
 
 ```bash
 npm install
+cp .env.example .env
+./run.sh
+```
+
+The app is then at [http://localhost:5001](http://localhost:5001).
+
+## Configure environment
+
+Do this before the agent or manual path (and before running the
+`instrumented` branch). The SDKs read standard OpenTelemetry exporter
+variables; they are not hardcoded in source.
+
+If you skipped the copy above:
+
+```bash
 cp .env.example .env
 ```
 
@@ -71,30 +83,174 @@ Frontend session replay reuses the same `OTEL_EXPORTER_OTLP_*` values.
 `vite.config.ts` bakes the endpoint and token into the browser bundle at
 build time. Use a throwaway ingestion token, not a production one.
 
-Then start the app:
+Then pick **agent-assisted**, **manual**, or the [`instrumented`](https://github.com/ClickHouse/hn-news-analyzer/tree/instrumented) branch.
+
+---
+
+## Instrument with an agent
+
+With `.env` filled in, copy this prompt into Cursor (or another coding agent),
+or [open it in Cursor](https://cursor.com/link/prompt?text=Use+curl+to+download%2C+read+and+follow%3A+https%3A%2F%2Fgithub.com%2FClickHouse%2Fhn-news-analyzer%2Fblob%2Fmain%2Fagent.md).
+
+```text
+Use curl to download, read and follow: https://github.com/ClickHouse/hn-news-analyzer/blob/main/agent.md
+```
+
+Your agent will instrument this app for ClickStack. Works with Claude Code, Cursor, Codex, and other coding agents. The instructions live in [`agent.md`](https://github.com/ClickHouse/hn-news-analyzer/blob/main/agent.md).
+
+<details>
+<summary>What the agent will do</summary>
+
+1. Confirm the working directory is this clone and `.env` is filled in
+2. Install `@hyperdx/node-opentelemetry` and enable `opentelemetry-instrument` in `run.sh`
+3. Install `@hyperdx/browser` and enable `HyperDX.init` / `HyperDX.addAction`
+4. Run `./run.sh` and verify `/v1/traces`, `/v1/metrics`, and `/v1/logs` health checks pass
+
+</details>
+
+After it finishes, open [http://localhost:5001](http://localhost:5001) and
+click around, then in the Cloud console open the service → **ClickStack**
+and complete Getting Started if you have not already (skip any “set up a
+collector” screens — you are sending OTLP directly to ClickStack Cloud).
+
+To return the repo to the uninstrumented clone state (SDKs uninstalled,
+`run.sh` and `src/web/telemetry.ts` restored):
 
 ```bash
+./reset.sh
+```
+
+Refill `.env` from `.env.example` afterwards — `reset.sh` clears it.
+
+---
+
+## Instrument manually
+
+Backend auto-instrumentation is two steps: install `@hyperdx/node-opentelemetry`,
+then wrap the Node process with `opentelemetry-instrument` in `run.sh`. There
+are no OpenTelemetry imports in `src/server/`.
+
+To strip the SDKs and restore the uninstrumented files later, run `./reset.sh`.
+That also empties `.env`; copy `.env.example` again and refill the ClickStack
+values before the next instrumented run.
+
+### 1. Install the Node SDK
+
+```bash
+npm install @hyperdx/node-opentelemetry
+```
+
+This adds the OpenTelemetry SDK and auto-instrumentations for Express, HTTP,
+Undici, and related libraries. It does not change application source:
+`src/server/` still has no OTel imports.
+
+### 2. Enable the wrapper in `run.sh`
+
+The bottom of `run.sh` has two `exec` lines. Comment the plain `node` line
+and uncomment the instrumented one:
+
+```diff
+ # BEFORE — plain node, no instrumentation, collector stays silent:
+-exec node scripts/entrypoint.js
++# exec node scripts/entrypoint.js
+
+ # AFTER — same source, wrapped by HyperDX's opentelemetry-instrument CLI.
+-# exec npx opentelemetry-instrument scripts/entrypoint.js
++exec npx opentelemetry-instrument scripts/entrypoint.js
+```
+
+If you flip the toggle without installing the package, `run.sh` exits with a
+reminder.
+
+### 3. Restart the app
+
+```bash
+# Ctrl-C the previous run, then:
 ./run.sh
 ```
 
-The app is at [http://localhost:5001](http://localhost:5001). Confirm the
-startup banner prints three “Health check passed” lines for `/v1/traces`,
-`/v1/metrics`, and `/v1/logs`. Click around, then in the Cloud console open
-the service → **ClickStack** and complete Getting Started if you have not
-already (skip any “set up a collector” screens — you are sending OTLP
-directly to ClickStack Cloud).
+`run.sh` now starts the server with `opentelemetry-instrument
+scripts/entrypoint.js`. The HyperDX CLI loads the SDK, then runs that
+script (there is no separate `node` argument). `scripts/entrypoint.js`
+calls `require('console')` once so console capture actually wraps
+`console.log`, then loads the compiled server. See [How “zero code change”
+works](#how-zero-code-change-works-and-where-it-doesnt) for why that
+`require` is there.
 
-Do not run `./reset.sh` on this branch — it uninstalls the SDKs and restores
-the uninstrumented toggles. Use
-[`agentic-getting-started`](https://github.com/ClickHouse/hn-news-analyzer/tree/agentic-getting-started)
-if you want that workflow.
+Confirm the startup banner prints three “Health check passed” lines for
+`/v1/traces`, `/v1/metrics`, and `/v1/logs`. Then click around
+[http://localhost:5001](http://localhost:5001) and look for the
+corresponding traces in ClickStack.
+
+### 4. Optional: browser sessions
+
+After backend traces are flowing, you can add distributed traces
+(browser → backend) and session replay. No extra `.env` keys: the browser
+bundle reuses `OTEL_EXPORTER_OTLP_ENDPOINT` and the token inside
+`OTEL_EXPORTER_OTLP_HEADERS` (parsed at build time by `vite.config.ts`).
+
+```bash
+npm install @hyperdx/browser
+```
+
+In `src/web/telemetry.ts`, uncomment the import and the `HyperDX.init({...})`
+block:
+
+```diff
+-// import HyperDX from '@hyperdx/browser';
++import HyperDX from '@hyperdx/browser';
+
+ export function initTelemetry(): void {
+-  // HyperDX.init({
+-  //   url: __OTLP_ENDPOINT__,
+-  //   apiKey: __OTLP_AUTH_TOKEN__,
+-  //   service: 'hn-analyzer-web',
+-  //   tracePropagationTargets: [/localhost:5001/i, /\/api\//i],
+-  //   consoleCapture: true,
+-  //   advancedNetworkCapture: true,
+-  // });
++  HyperDX.init({
++    url: __OTLP_ENDPOINT__,
++    apiKey: __OTLP_AUTH_TOKEN__,
++    service: 'hn-analyzer-web',
++    tracePropagationTargets: [/localhost:5001/i, /\/api\//i],
++    consoleCapture: true,
++    advancedNetworkCapture: true,
++  });
+ }
+```
+
+`__OTLP_ENDPOINT__` and `__OTLP_AUTH_TOKEN__` are compile-time constants
+from `vite.config.ts` (declared in `src/web/types.d.ts`).
+
+Also uncomment `HyperDX.addAction(name, attrs)` in `recordAction()` in the
+same file. The dashboard already calls `recordAction(...)` on refresh and
+search submit; those become named markers on the replay timeline.
+
+Restart and hard-reload the tab so the new bundle is served:
+
+```bash
+# Ctrl-C, then:
+./run.sh
+```
+
+In ClickStack you should then see:
+
+- A browser `fetch /api/*` span sharing a trace ID with the Express handler
+  (`traceparent` is injected because of `tracePropagationTargets`)
+- Session replay on the trace timeline (on by default once `HyperDX.init`
+  runs; pass `disableReplay: true` if you do not want that)
+- Browser console, network, and unhandled-error capture
+
+The ingestion token is baked into the public JS bundle. Anyone with the
+network tab can copy it, so use a throwaway token, never a production one.
 
 ---
 
 ## What to look at in ClickStack
 
-Click around [http://localhost:5001](http://localhost:5001) and open the
-matching traces in ClickStack.
+After the app is instrumented, click around [http://localhost:5001](http://localhost:5001)
+and open the matching traces in ClickStack.
 
 ### The headline span: ClickHouse over HTTP
 
@@ -147,7 +303,7 @@ OTel log record with the active trace ID and span ID attached. From any
 `[clickhouse]` log lines, and from any slow-query warning you can jump to
 the trace that issued it.
 
-### Browser ↔ backend distributed traces
+### Browser ↔ backend distributed traces (after frontend instrumentation)
 
 Every trace gains a new “head” span. Pull up the trace for a `/api/search`
 click and you'll see:
@@ -160,7 +316,7 @@ click and you'll see:
 Walk down the trace: zero coordination between browser and backend SDKs,
 just W3C `traceparent` propagation over HTTP.
 
-### Session replay
+### Session replay (after frontend instrumentation)
 
 Pick any recent trace, click the **Session Replay** tab. You'll get a
 scrubbable video of the visitor's session. Drag the scrubber: the
@@ -194,17 +350,17 @@ All queries use parameterized ClickHouse SQL — no string interpolation.
 **Port 5001 already in use.** Set `PORT=5002 ./run.sh` (and update the URL
 you open in the browser).
 
-**ClickStack shows nothing.** Check:
+**ClickStack shows nothing after instrumentation.** Check:
 
-1. `.env` has real values (no `YOUR_*` placeholders, `authorization=` is
+1. `run.sh` actually has the AFTER `exec` line uncommented (and the BEFORE
+   one commented). Run `tail -5 run.sh` to eyeball it.
+2. `.env` has real values (no `YOUR_*` placeholders, `authorization=` is
    not empty).
-2. `OTEL_EXPORTER_OTLP_ENDPOINT` includes the `:4318` port and `https://`
+3. `OTEL_EXPORTER_OTLP_ENDPOINT` includes the `:4318` port and `https://`
    scheme.
-3. The HyperDX startup banner in the terminal lists three “Health check
+4. The HyperDX startup banner in the terminal lists three “Health check
    passed” lines for `/v1/traces`, `/v1/metrics`, `/v1/logs`. If a health
    check fails, the endpoint or token is wrong.
-4. `run.sh` still has the instrumented `exec npx opentelemetry-instrument`
-   line active (`tail -5 run.sh`).
 
 **Traces and metrics arrive but logs do not.** Console capture hooks
 `require('console')` via `require-in-the-middle`. Most apps never call
@@ -272,19 +428,19 @@ a random dashboard refresh or search every 2–3s.
 
 ## How “zero code change” works (and where it doesn't)
 
-- **Backend:** still zero `@hyperdx/*` / `@opentelemetry/*` imports in
-  `src/server/`. On this branch the SDKs *are* declared in `package.json`.
-  Auto-instrumentation is loaded by `opentelemetry-instrument` at process
-  start; it patches `express`, `http`, `undici`, and `console` so every
-  request handler, ClickHouse HTTPS call, and log line becomes a span or
-  log record. Verifiable with:
+- **Backend:** literally zero `@hyperdx/*` / `@opentelemetry/*` imports in
+  `src/server/`, AND zero such packages declared in `package.json` (until
+  you instrument). The auto-instrumentation is loaded by
+  `opentelemetry-instrument` at process start; it patches `express`,
+  `http`, `undici`, and `console` so every request handler, ClickHouse
+  HTTPS call, and log line becomes a span or log record. Verifiable with:
 
   ```bash
-  rg -n "(@hyperdx|@opentelemetry)" src/server/
+  rg -n "(@hyperdx|@opentelemetry)" src/server/ package.json
   ```
 
-  You'll see no matches in `src/server/`. The packages only appear in
-  `package.json`.
+  You'll see no matches before the install. After it, you'll see a
+  line in `package.json` and nothing in `src/server/`.
 
   The one operational concession is `scripts/entrypoint.js` — 2 lines that
   do `require('console')` to wake up the HyperDX console-capture hook, then
@@ -292,13 +448,15 @@ a random dashboard refresh or search every 2–3s.
   tree (`src/server/` stays pure), but it's what makes log capture work
   in Node.
 
-- **Frontend:** browser SDK init lives in `src/web/telemetry.ts` and is
-  enabled on this branch. The browser SDK is the one piece that needs to
-  be in the source — there's no `opentelemetry-instrument` equivalent for
-  the browser — but the rest of `src/web/` has zero OTel imports, and the
-  wiring fits in 8 lines of declarative config (URL, token, service name,
-  propagation targets, capture flags). It also lives in its own dedicated
-  module, so the rest of the app stays untouched.
+- **Frontend:** browser SDK init lives in `src/web/telemetry.ts`, commented
+  out by default. Enabling it requires two uncomments (`import` +
+  `HyperDX.init({...})`) and `npm install @hyperdx/browser`. The browser
+  SDK is the one piece that needs to be in the source — there's no
+  `opentelemetry-instrument` equivalent for the browser — but the rest of
+  `src/web/` has zero OTel imports, and the wiring fits in 8 lines of
+  declarative config (URL, token, service name, propagation targets,
+  capture flags). It also lives in its own dedicated module, so the rest
+  of the app stays untouched.
 
 ---
 
@@ -314,7 +472,7 @@ src/
     ├── main.tsx
     ├── App.tsx
     ├── api.ts
-    ├── telemetry.ts    # HyperDX.init + addAction (enabled on this branch)
+    ├── telemetry.ts    # HyperDX.init — commented out until frontend instrumentation
     └── components/
         ├── StatsOverview.tsx
         ├── StoriesTimelineChart.tsx   (Recharts)
@@ -323,11 +481,15 @@ src/
         └── SearchPanel.tsx            (Recharts + debounced search)
 scripts/
 ├── entrypoint.js       # 2-line shim: require('console') + require server.
-│                       # run.sh wraps this with opentelemetry-instrument.
+│                       # Run by both toggles of run.sh; the BEFORE toggle
+│                       # just calls `node` on it, the AFTER toggle wraps
+│                       # it with `opentelemetry-instrument`.
 └── otel-sink.js        # Local OTLP receiver for debugging — prints payloads.
 
-run.sh                  # Instrumented runner (opentelemetry-instrument).
-reset.sh                # Strips SDKs and restores the uninstrumented toggles.
-                        # Don't run this on the instrumented branch.
+run.sh                  # Single runner. Edit the toggle at the bottom
+                        # to flip between BEFORE (silent) and AFTER (wired).
+reset.sh                # Restore run.sh + telemetry.ts to the BEFORE state,
+                        # uninstall HyperDX SDKs, kill stale servers, clear dist/,
+                        # empty .env.
 .env.example            # OTEL_EXPORTER_OTLP_* template for ClickStack Cloud.
 ```
