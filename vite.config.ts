@@ -21,12 +21,17 @@ export default defineConfig(({ mode }) => {
   // leaks into the bundle. The HYPERDX_API_KEY fallback covers .env files
   // that follow the HyperDX-recommended style instead of the raw-headers one.
   const env = loadEnv(mode, projectRoot, '');
-  // The public Vercel build must never reuse the server's collector token.
-  // Local booth replay retains the explicit opt-in behavior documented below.
-  const otlpEndpoint = process.env.VERCEL === '1' ? '' : env.OTEL_EXPORTER_OTLP_ENDPOINT ?? '';
-  const otlpAuthToken = process.env.VERCEL === '1' ? '' :
-    env.HYPERDX_API_KEY?.trim() ||
-    parseOtlpAuthToken(env.OTEL_EXPORTER_OTLP_HEADERS);
+  // Vercel injects these into process.env at build time. Local builds read
+  // them from .env via loadEnv. Only these two values are compiled into the
+  // page; the collector token is included on purpose so the browser SDK can
+  // send traces and session replay directly.
+  const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()
+    || env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()
+    || '';
+  const otlpAuthToken = process.env.HYPERDX_API_KEY?.trim()
+    || env.HYPERDX_API_KEY?.trim()
+    || parseOtlpAuthToken(process.env.OTEL_EXPORTER_OTLP_HEADERS)
+    || parseOtlpAuthToken(env.OTEL_EXPORTER_OTLP_HEADERS);
 
   return {
     root: path.resolve(projectRoot, 'src/web'),

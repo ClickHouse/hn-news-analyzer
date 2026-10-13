@@ -12,13 +12,12 @@
 // injected by vite.config.ts from OTEL_EXPORTER_OTLP_ENDPOINT and
 // OTEL_EXPORTER_OTLP_HEADERS (or HYPERDX_API_KEY).
 //
-// SECURITY NOTE: the token ships in the public browser bundle. Use a
-// throwaway demo-scoped ingestion token, never your production one.
+// SECURITY NOTE: the ingestion token ships in the public browser bundle,
+// including on Vercel. Use a demo-scoped token.
 //
 // An empty url is not "disabled". @hyperdx/browser treats "" as a relative
-// base and POSTs to this origin's /v1/traces. Vercel builds leave both
-// constants empty so the server collector token never enters the public
-// bundle; skip init in that case.
+// base and POSTs to this origin's /v1/traces. Skip init when either value
+// is missing.
 
 import HyperDX from '@hyperdx/browser';
 

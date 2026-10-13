@@ -234,10 +234,12 @@ Export failures are logged without failing the app. Collector dependencies live
 in `deploy/vercel/package.json`. Langfuse packages are root dependencies. The
 local `run.sh` BEFORE/AFTER toggle is unchanged.
 
-Vercel serves static assets without invoking the API, so backend telemetry covers
-API requests. Browser replay remains the separate local opt-in demo. The Vercel
-build deliberately excludes the backend collector token from frontend constants;
-add separately scoped browser ingestion credentials if enabling replay there later.
+Vercel serves static assets without invoking the API. Backend telemetry still
+covers API requests. The production build also bakes `OTEL_EXPORTER_OTLP_ENDPOINT`
+and the collector token into the browser bundle, so the page sends its own
+traces and session replay to the collector. Those show up as service
+`hn-analyzer-web`. API spans stay on `hn-analyzer-api` with
+`cloud.provider=vercel`.
 
 ## Local checks before deploying
 
