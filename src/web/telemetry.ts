@@ -14,10 +14,18 @@
 //
 // SECURITY NOTE: the token ships in the public browser bundle. Use a
 // throwaway demo-scoped ingestion token, never your production one.
+//
+// An empty url is not "disabled". @hyperdx/browser treats "" as a relative
+// base and POSTs to this origin's /v1/traces. Vercel builds leave both
+// constants empty so the server collector token never enters the public
+// bundle; skip init in that case.
 
 import HyperDX from '@hyperdx/browser';
 
+const browserTelemetryEnabled = Boolean(__OTLP_ENDPOINT__ && __OTLP_AUTH_TOKEN__);
+
 export function initTelemetry(): void {
+  if (!browserTelemetryEnabled) return;
   HyperDX.init({
     url: __OTLP_ENDPOINT__,
     apiKey: __OTLP_AUTH_TOKEN__,
@@ -32,5 +40,6 @@ export function recordAction(
   name: string,
   attrs?: Record<string, string | number | boolean>,
 ): void {
+  if (!browserTelemetryEnabled) return;
   HyperDX.addAction(name, attrs);
 }
