@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   ClickUIProvider,
@@ -14,6 +14,8 @@ import {
   fetchTimeline,
   fetchTopDomains,
   fetchTopUsers,
+  fetchAppConfig,
+  type AppConfig,
   type Overview,
   type TimelineResponse,
   type TopDomain,
@@ -26,6 +28,8 @@ import { StoriesTimelineChart } from './components/StoriesTimelineChart';
 import { TopUsersTable } from './components/TopUsersTable';
 import { TopDomainsTable } from './components/TopDomainsTable';
 import { SearchPanel } from './components/SearchPanel';
+
+const ChatPanel = lazy(() => import('./components/ChatPanel'));
 
 const DASHBOARD_REFRESH_MS = 15_000;
 const CURRENT_YEAR = new Date().getFullYear();
@@ -54,6 +58,15 @@ export function App() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [staleCount, setStaleCount] = useState(0);
+  const [config, setConfig] = useState<AppConfig | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    void fetchAppConfig().then((value) => { if (mounted) setConfig(value); }).catch(() => {
+      // Config unavailable: keep the original dashboard usable.
+    });
+    return () => { mounted = false; };
+  }, []);
 
   const scopeLabel = year !== null ? String(year) : 'all time';
 
@@ -96,7 +109,7 @@ export function App() {
         gap="lg"
         padding="lg"
         maxWidth="1400px"
-        style={{ margin: '0 auto' }}
+        style={{ margin: '0 auto', boxSizing: 'border-box', minWidth: 0 }}
       >
         <Container
           orientation="horizontal"
@@ -137,6 +150,12 @@ export function App() {
           <Panel>
             <Text>Last refresh failed: {error}</Text>
           </Panel>
+        )}
+
+        {config?.chat.enabled && (
+          <Suspense fallback={null}>
+            <ChatPanel key={year ?? 'all'} year={year} ready={config.chat.ready} />
+          </Suspense>
         )}
 
         <div style={{ width: '100%' }}>

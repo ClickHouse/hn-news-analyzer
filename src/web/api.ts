@@ -93,6 +93,41 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+export interface AppConfig {
+  chat: { enabled: boolean; ready: boolean };
+}
+
+export interface ChatReply {
+  answer: string;
+  scope: string;
+  columns: { key: string; label: string; format?: 'number' | 'story' | 'date' }[];
+  rows: Record<string, unknown>[];
+  elapsedMs: number;
+}
+
+export async function fetchAppConfig(): Promise<AppConfig> {
+  return request<AppConfig>('/api/config');
+}
+
+export async function askChat(
+  message: string,
+  year: YearScope,
+  history: { role: 'user' | 'assistant'; content: string }[],
+  sessionId: string,
+  signal: AbortSignal,
+): Promise<ChatReply> {
+  const res = await fetch('/api/chat', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, year, history, sessionId }), signal,
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.error || 'Could not load an answer. Please try again.');
+  if (!body || typeof body.answer !== 'string' || !Array.isArray(body.rows) || !Array.isArray(body.columns)) {
+    throw new Error('The answer service returned an invalid response.');
+  }
+  return body as ChatReply;
+}
+
 export async function fetchHealth(): Promise<HealthResponse> {
   return request<HealthResponse>('/api/health');
 }

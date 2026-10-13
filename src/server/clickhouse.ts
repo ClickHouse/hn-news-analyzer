@@ -100,3 +100,29 @@ export async function ping(): Promise<boolean> {
     return false;
   }
 }
+
+// Chat uses the same data connection, with per-call limits and no retry loop.
+// All SQL comes from the fixed tools in chat-data.ts; values use query_params.
+export async function queryForChat(
+  sql: string,
+  params: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<Record<string, unknown>[]> {
+  const result = await client.query({
+    query: sql,
+    query_params: params,
+    format: 'JSONEachRow',
+    abort_signal: signal,
+    clickhouse_settings: {
+      max_execution_time: 8,
+      timeout_before_checking_execution_speed: 0,
+      max_rows_to_read: '60000000',
+      max_bytes_to_read: '3221225472',
+      max_memory_usage: '536870912',
+      max_result_rows: '100',
+      result_overflow_mode: 'throw',
+      max_threads: 2,
+    },
+  });
+  return result.json<Record<string, unknown>>();
+}

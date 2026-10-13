@@ -6,3 +6,5 @@ dist/
 *.log
 .DS_Store
 .vite/
+.vercel/
+deploy/cloud-run/collector.env

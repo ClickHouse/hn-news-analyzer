@@ -1,6 +1,9 @@
-> **This is the `instrumented` branch.** `@hyperdx/node-opentelemetry` and
-> `@hyperdx/browser` are already in `package.json`, `run.sh` launches through
+> **This is the `instrumented-chat-langfuse` branch.** It is the
+> [`instrumented`](https://github.com/ClickHouse/hn-news-analyzer/tree/instrumented)
+> branch plus optional AI chat and Langfuse tracing. `@hyperdx/node-opentelemetry`
+> and `@hyperdx/browser` are already in `package.json`, `run.sh` launches through
 > `opentelemetry-instrument`, and `src/web/telemetry.ts` calls `HyperDX.init`.
+> Chat and Langfuse stay off until you set the env vars in [Optional AI chat](#optional-ai-chat).
 > Fill `.env` and run `./run.sh` — you do not need the agent or manual steps
 > below. To instrument the app yourself, use [`main`](https://github.com/ClickHouse/hn-news-analyzer).
 > Do not run `./reset.sh` here unless you want to strip the SDKs.
@@ -28,7 +31,7 @@ Three ways to send logs, traces, and metrics to [ClickStack](https://clickhouse.
 
 ## Prerequisites
 
-- **Node 18+** and **npm**.
+- **Node 22+** and **npm**.
 - A [ClickStack](https://clickhouse.com/cloud/clickstack) service on ClickHouse Cloud. In the Cloud console, open the service, then **ClickStack** → **Configure your OpenTelemetry exporter** → **Env vars**. You need the OTLP endpoint and the ingestion token.
 - The public ClickHouse demo cluster is used out of the box (no extra creds).
 
@@ -40,8 +43,8 @@ The SDKs read standard OpenTelemetry exporter variables; they are not
 hardcoded in source.
 
 ```bash
-git clone https://github.com/ClickHouse/hn-news-analyzer.git
-# skip wiring: git clone -b instrumented https://github.com/ClickHouse/hn-news-analyzer.git
+git clone -b instrumented-chat-langfuse https://github.com/ClickHouse/hn-news-analyzer.git
+# ClickStack only, no chat: git clone -b instrumented https://github.com/ClickHouse/hn-news-analyzer.git
 cd hn-news-analyzer
 npm install
 cp .env.example .env
@@ -70,10 +73,139 @@ build time. Use a throwaway ingestion token, not a production one.
 ```
 
 The app is at [http://localhost:5001](http://localhost:5001). Then pick
-**agent-assisted** or **manual**. If you cloned `instrumented`, skip those —
-telemetry is already wired.
+**agent-assisted** or **manual**. If you cloned this branch or `instrumented`,
+skip those — telemetry is already wired.
 
 ---
+
+## Optional AI chat
+
+The chat addon is **off by default** and independent of the OpenTelemetry
+BEFORE/AFTER toggle. The original dashboard and instrumentation walkthrough
+work the same way with chat disabled.
+
+To enable it, add these server-side settings to `.env` and restart `./run.sh`:
+
+```dotenv
+CHAT_ENABLED=true
+CLICKHOUSE_INFERENCE_API_KEY=<your-inference-api-key>
+CLICKHOUSE_INFERENCE_MODEL=gemini-3.8-flash
+CLICKHOUSE_INFERENCE_BASE_URL=https://YOUR_INFERENCE_GATEWAY
+```
+
+The default model is `gemini-3.8-flash`; the model setting is optional. Use a
+model that supports `/v1/chat/completions` and can return JSON. The base
+URL is required and may include `/v1`. The API key stays on the server and is
+never included in the browser bundle or `/api/config` response. If chat is
+enabled without an API key or base URL, the panel shows a setup message. Set
+`CHAT_ENABLED=false` and restart to hide the panel and make `POST /api/chat`
+return 404.
+
+Try:
+
+- “Top 5 stories about ClickHouse in 2024”
+- “How did Rust mentions change by year?”
+- “Which domains had the most stories in 2024?”
+- “How many stories mention Kubernetes?”
+- “Same for 2023” as a follow-up
+
+Chat uses the dashboard's selected year unless a question specifies dates.
+Changing the dashboard year starts a fresh conversation. Results show the
+actual title filter and date range. Topic matching searches story titles;
+the addon does not read articles or comment bodies. Author and domain
+rankings use story count. It excludes deleted/dead stories.
+
+Each turn is one Langfuse trace named `answer-hn-question`. The trace input
+is the user message and the output is the answer. Inside it, `plan-query` is
+the model call and `retrieve-hackernews` is the ClickHouse lookup. Follow-up
+turns share a session until you clear the chat or change the dashboard year,
+so they show up together in Langfuse's Sessions view. API keys and upstream
+error bodies are not written into the trace.
+
+Add these to `.env` to export traces. Without both keys, chat still answers
+and nothing is sent. `LANGFUSE_TRACING_ENVIRONMENT` defaults to `development`
+locally and to the Vercel environment when that is set. Use lowercase letters,
+numbers, hyphens, or underscores.
+
+```dotenv
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+LANGFUSE_TRACING_ENVIRONMENT=development
+```
+
+For speed, each request makes **one inference call**, translates its small
+validated plan into a parameterized query, and displays real ClickHouse
+results with a brief deterministic summary. The model cannot supply SQL.
+The addon uses the existing ClickHouse connection and `hackernews.hackernews`
+table. Queries have row/byte/memory caps, an 8-second execution limit, and
+a 25-second overall request timeout. A stopped browser request cancels the
+inference/query request. Langfuse uses its own tracer, so the ClickStack
+BEFORE/AFTER toggle is unchanged.
+
+### Correlating ClickStack and Langfuse
+
+With the local **AFTER** runner (or `OTEL_ENABLED=true` on Vercel), each chat
+turn exports `answer-hn-question`, `plan-query`, and `retrieve-hackernews` to
+both destinations with **identical TraceId and SpanId values**. ClickStack
+receives their timing, hierarchy, type, model, and correlation attributes;
+prompts, results, and answers remain in Langfuse. The BEFORE runner still
+sends no ClickStack telemetry, even when Langfuse is enabled.
+
+Restart `./run.sh` after updating the code, ask a fresh question, and allow
+a few seconds for batching. In ClickStack, select the **traces** source and
+service `hn-analyzer-api`, then find the span named `answer-hn-question`.
+Its TraceId matches the Langfuse trace ID. The terminal also prints
+`[chat] started trace_id=...`, and the `/api/chat` response includes an
+`X-Trace-Id` header for troubleshooting successful and failed turns.
+Already-ingested traces are not changed by this update.
+
+To reproduce the Slack prototype's ClickStack-to-Langfuse link, add a
+highlighted attribute named **Langfuse URL** to your traces source using
+this SQL expression. Replace `YOUR_PROJECT_ID` with the project ID from
+your Langfuse URL, and use your own Langfuse region/base URL:
+
+```sql
+if(
+  mapContains(SpanAttributes, 'langfuse.trace.name'),
+  concat(
+    'https://us.cloud.langfuse.com/project/YOUR_PROJECT_ID/traces?peek=',
+    SpanId, '&observation=', SpanId, '&traceId=', TraceId
+  ),
+  ''
+)
+```
+
+The condition restricts the link to the mirrored Langfuse spans. Ordinary
+HTTP/database spans do not represent Langfuse observations. It assumes the
+standard ClickStack `SpanAttributes` map column.
+
+Run `npm run test:telemetry` to compare actual OTLP exports to local test
+receivers. It covers the local BEFORE/AFTER runners, Vercel, concurrent
+questions, failures, and keeping prompt/result content out of ClickStack.
+
+The panel is lazy-loaded only when enabled. The implementation uses ordinary
+HTTP calls and console logging, so the existing OTel runner can instrument
+it along with the rest of the app.
+
+Validation:
+
+```bash
+npm run typecheck
+npm run test:chat
+npm run build
+```
+
+`test:chat` uses local HTTP servers and stubbed inference/database responses;
+it needs no API key and makes no external calls. Live model verification
+requires configured inference credentials.
+
+## Deploy to Vercel and Google Cloud
+
+See [the deployment guide](deploy/README.md) for the Vercel app adapter and a
+Cloud Run **service** running the prebuilt ClickStack collector. It includes
+Secret Manager setup, a dry-run deployment command, and an ingestion smoke test.
+No cloud resources are created until you run the deployment commands.
 
 ## Instrument with an agent
 

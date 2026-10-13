@@ -1,10 +1,11 @@
 /**
  * HackerNews Analyzer API + static file server.
  *
- * This file intentionally contains NO OpenTelemetry or HyperDX imports.
- * In the "before" demo state it runs plain; in the "after" state it's
- * wrapped by `opentelemetry-instrument` which patches express / http /
- * undici / console at process start. Identical source, different runner.
+ * The ClickStack demo still has no HyperDX imports. In the "before" state
+ * this process runs plain; in the "after" state `opentelemetry-instrument`
+ * patches express / http / undici / console at process start.
+ * Chat traces go to Langfuse through an isolated tracer provider
+ * (`./langfuse`), which does not replace that global provider.
  *
  * The headline of the demo trace is the auto-instrumented HTTP span for
  * each outgoing call to sql-clickhouse.clickhouse.com, captured for free
@@ -14,7 +15,10 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import path from 'node:path';
 
-import { query, ping, CLICKHOUSE_URL, CLICKHOUSE_DATABASE } from './clickhouse';
+import { query, ping, queryForChat, CLICKHOUSE_URL, CLICKHOUSE_DATABASE } from './clickhouse';
+import { readChatConfig, chatReady } from './chat-config';
+import { createChatRouter } from './chat';
+import { initLangfuse, flushLangfuse } from './langfuse';
 
 const PORT = Number(process.env.PORT ?? 5001);
 const WEB_DIR = path.resolve(__dirname, '../web');
@@ -297,13 +301,19 @@ async function loadSearchTimeline(q: string, year: YearScope): Promise<SearchBuc
 // HTTP
 // ---------------------------------------------------------------------------
 
-const app = express();
+export const app = express();
 app.use(express.json());
 
 app.use((req, _res, next) => {
   console.log(`[http] ${req.method} ${req.path}`);
   next();
 });
+
+const chatConfig = readChatConfig();
+app.get('/api/config', (_req, res) => {
+  res.json({ chat: { enabled: chatConfig.enabled, ready: chatReady(chatConfig) } });
+});
+app.use('/api/chat', createChatRouter({ config: chatConfig, query: queryForChat }));
 
 app.get('/api/health', async (_req: Request, res: Response) => {
   const ok = await ping();
@@ -415,16 +425,24 @@ app.use((err: Error & { status?: number }, req: Request, res: Response, _next: N
   res.status(status).json({ error: err.name, message: err.message });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`=== HN ANALYZER on http://localhost:${PORT} ===`);
-  console.log(`[clickhouse] data source: ${CLICKHOUSE_URL} / db=${CLICKHOUSE_DATABASE}`);
-  maybeStartSelfTraffic();
-});
+// Vercel imports the app without opening a port or starting background traffic.
+export function startServer() {
+  initLangfuse();
+  const server = app.listen(PORT, () => {
+    console.log(`=== HN ANALYZER on http://localhost:${PORT} ===`);
+    console.log(`[clickhouse] data source: ${CLICKHOUSE_URL} / db=${CLICKHOUSE_DATABASE}`);
+    maybeStartSelfTraffic();
+  });
+  process.once('SIGINT', () => {
+    console.log('\n[shutdown] SIGINT received');
+    server.close(() => {
+      void flushLangfuse().finally(() => process.exit(0));
+    });
+  });
+  return server;
+}
 
-process.on('SIGINT', () => {
-  console.log('\n[shutdown] SIGINT received');
-  server.close(() => process.exit(0));
-});
+if (require.main === module) startServer();
 
 // ---------------------------------------------------------------------------
 // Helpers

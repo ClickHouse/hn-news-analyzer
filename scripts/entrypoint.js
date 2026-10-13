@@ -19,4 +19,4 @@
 // installed, so `require('console')` is a harmless no-op.
 
 require('console');
-require('../dist/server/index.js');
+require('../dist/server/index.js').startServer();
