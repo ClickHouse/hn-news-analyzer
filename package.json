@@ -36,5 +36,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "overrides": {
+    "react-remove-scroll": "^2.6.3"
   }
 }
